@@ -254,11 +254,6 @@ AC_CHECK_HEADERS([ \
   errno.h \
 ])
 
-AC_CHECK_HEADERS(sys/sysctl.h, [], [], [
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-])
 if test "x$ac_cv_header_sys_queue_h" = "xyes"; then
 	AC_MSG_CHECKING(for TAILQ_FOREACH in sys/queue.h)
 	AC_EGREP_CPP(yes,
@@ -328,13 +323,6 @@ if test "x$ac_cv_header_sys_time_h" = "xyes"; then
 		[Define if timerisset is defined in <sys/time.h>])
 	  AC_MSG_RESULT(yes)] ,AC_MSG_RESULT(no)
 )
-fi
-
-if test "x$ac_cv_header_sys_sysctl_h" = "xyes"; then
-	AC_CHECK_DECLS([CTL_KERN, KERN_RANDOM, RANDOM_UUID, KERN_ARND], [], [],
-	   [[#include <sys/types.h>
-	     #include <sys/sysctl.h>]]
-	)
 fi
 
 AM_CONDITIONAL(BUILD_WIN32, test x$bwin32 = xtrue)
