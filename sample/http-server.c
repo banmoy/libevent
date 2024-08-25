@@ -39,6 +39,7 @@
 #include <event2/buffer.h>
 #include <event2/util.h>
 #include <event2/keyvalq_struct.h>
+#include <event2/thread.h>
 
 #ifdef EVENT__HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -64,6 +65,8 @@
 #define O_RDONLY _O_RDONLY
 #endif
 #endif
+
+#include <pthread.h>
 
 char uri_root[512];
 
@@ -103,6 +106,31 @@ guess_content_type(const char *path)
 
 not_found:
 	return "application/misc";
+}
+
+static void
+complete_request_cb(struct evhttp_request *req, void *arg)
+{
+	printf("Complete request %s\n", evhttp_request_get_uri(req));
+}
+
+static void
+free_request_cb(struct evhttp_request *req, void *arg)
+{
+	printf("Free request %s\n", evhttp_request_get_uri(req));
+}
+
+static int
+new_request_cb(struct evhttp_request *req, void *arg)
+{
+	struct evhttp_connection* connection = evhttp_request_get_connection(req);
+	char *address;
+	uint16_t port;
+	evhttp_connection_get_peer(connection, &address, &port);
+	printf("New request, remote host: %s, port: %d\n", address, port);
+	evhttp_request_set_on_complete_cb(req, complete_request_cb, NULL);
+	evhttp_request_set_on_free_cb(req, free_request_cb, NULL);
+		return 0;
 }
 
 /* Callback used for the /dump URI, and for every non-GET request:
@@ -149,6 +177,68 @@ dump_request_cb(struct evhttp_request *req, void *arg)
 	puts(">>>");
 
 	evhttp_send_reply(req, 200, "OK", NULL);
+}
+
+pthread_t no_reply_thread;
+
+void* no_reply_runner(void *arg) {
+	struct evhttp_request *req = arg;
+	for (int i = 0; i < 2; i++) {
+		sleep(5);
+		printf("Sleep 5s for %s\n", evhttp_request_get_uri(req));
+	}
+	evhttp_send_reply(req, 200, "OK", NULL);
+	return NULL;
+}
+
+/* Callback used for the /dump URI, and for every non-GET request:
+ * dumps all information to stdout and gives back a trivial 200 ok */
+static void
+no_reploy_request_cb(struct evhttp_request *req, void *arg)
+{
+	const char *cmdtype;
+	struct evkeyvalq *headers;
+	struct evkeyval *header;
+	struct evbuffer *buf;
+
+	switch (evhttp_request_get_command(req)) {
+	case EVHTTP_REQ_GET: cmdtype = "GET"; break;
+	case EVHTTP_REQ_POST: cmdtype = "POST"; break;
+	case EVHTTP_REQ_HEAD: cmdtype = "HEAD"; break;
+	case EVHTTP_REQ_PUT: cmdtype = "PUT"; break;
+	case EVHTTP_REQ_DELETE: cmdtype = "DELETE"; break;
+	case EVHTTP_REQ_OPTIONS: cmdtype = "OPTIONS"; break;
+	case EVHTTP_REQ_TRACE: cmdtype = "TRACE"; break;
+	case EVHTTP_REQ_CONNECT: cmdtype = "CONNECT"; break;
+	case EVHTTP_REQ_PATCH: cmdtype = "PATCH"; break;
+	default: cmdtype = "unknown"; break;
+	}
+
+	printf("Received a %s request for %s\nHeaders:\n",
+		cmdtype, evhttp_request_get_uri(req));
+
+	headers = evhttp_request_get_input_headers(req);
+	for (header = headers->tqh_first; header;
+		 header = header->next.tqe_next) {
+		printf("  %s: %s\n", header->key, header->value);
+	}
+
+	buf = evhttp_request_get_input_buffer(req);
+	puts("Input data: <<<");
+	while (evbuffer_get_length(buf)) {
+		int n;
+		char cbuf[128];
+		n = evbuffer_remove(buf, cbuf, sizeof(cbuf));
+		if (n > 0)
+			(void) fwrite(cbuf, 1, n, stdout);
+	}
+	puts(">>>");
+
+	if (pthread_create(&no_reply_thread, NULL, no_reply_runner, (void*)req) != 0) {
+		printf("Failed to create thread for %s\n", evhttp_request_get_uri(req));
+		evhttp_send_error(req, HTTP_INTERNAL, "Failed to create thread");
+		return;
+	}
 }
 
 /* This callback gets invoked when we get any http request that doesn't match
@@ -329,11 +419,12 @@ syntax(void)
 int
 main(int argc, char **argv)
 {
+	evthread_use_pthreads();
 	struct event_base *base;
 	struct evhttp *http;
 	struct evhttp_bound_socket *handle;
 
-	ev_uint16_t port = 0;
+	ev_uint16_t port = 8081;
 #ifdef _WIN32
 	WSADATA WSAData;
 	WSAStartup(0x101, &WSAData);
@@ -341,11 +432,6 @@ main(int argc, char **argv)
 	if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
 		return (1);
 #endif
-	if (argc < 2) {
-		syntax();
-		return 1;
-	}
-
 	base = event_base_new();
 	if (!base) {
 		fprintf(stderr, "Couldn't create an event_base: exiting\n");
@@ -359,12 +445,18 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	evhttp_set_newreqcb(http, new_request_cb, NULL);
+
 	/* The /dump URI will dump all requests to stdout and say 200 ok. */
-	evhttp_set_cb(http, "/dump", dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_1", dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_2", dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_3", dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_4", dump_request_cb, NULL);
+	evhttp_set_cb(http, "/no_reply", no_reploy_request_cb, NULL);
 
 	/* We want to accept arbitrary requests, so we need to set a "generic"
 	 * cb.  We can also add callbacks for specific paths. */
-	evhttp_set_gencb(http, send_document_cb, argv[1]);
+	evhttp_set_gencb(http, send_document_cb, "/Users/lpf/Downloads");
 
 	/* Now we tell the evhttp what port to listen on */
 	handle = evhttp_bind_socket_with_handle(http, "0.0.0.0", port);
