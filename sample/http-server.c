@@ -40,6 +40,7 @@
 #include <event2/util.h>
 #include <event2/keyvalq_struct.h>
 #include <event2/thread.h>
+#include <event2/bufferevent.h>
 
 #ifdef EVENT__HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -181,9 +182,10 @@ dump_request_cb(struct evhttp_request *req, void *arg)
 
 pthread_t no_reply_thread;
 
-void* no_reply_runner(void *arg) {
+static void*
+no_reply_runner(void *arg) {
 	struct evhttp_request *req = arg;
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 5; i++) {
 		sleep(5);
 		printf("Sleep 5s for %s\n", evhttp_request_get_uri(req));
 	}
@@ -416,10 +418,27 @@ syntax(void)
 	fprintf(stdout, "Syntax: http-server <docroot>\n");
 }
 
+static struct bufferevent *
+bufferevent_cb(struct event_base *base, void *args)
+{
+	printf("Call bufferevent_cb\n");
+	int flags = BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE;
+	struct bufferevent *bev = bufferevent_socket_new(base, -1, flags);
+	if (bev) {
+		printf("Create bufferevent\n");
+	}
+	return bev;
+}
+
 int
 main(int argc, char **argv)
 {
-	evthread_use_pthreads();
+	int ret = evthread_use_pthreads();
+	if (ret < 0) {
+		printf("Fail to call evthread_use_pthreads\n");
+	} else {
+		printf("Success to call evthread_use_pthreads\n");
+	}
 	struct event_base *base;
 	struct evhttp *http;
 	struct evhttp_bound_socket *handle;
@@ -445,6 +464,7 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	evhttp_set_bevcb(http, bufferevent_cb, NULL);
 	evhttp_set_newreqcb(http, new_request_cb, NULL);
 
 	/* The /dump URI will dump all requests to stdout and say 200 ok. */
