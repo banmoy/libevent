@@ -350,6 +350,11 @@ struct bufferevent *
 bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
     int options)
 {
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
+
 	struct bufferevent_private *bufev_p;
 	struct bufferevent *bufev;
 
@@ -364,6 +369,7 @@ bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
 	if (bufferevent_init_common_(bufev_p, base, &bufferevent_ops_socket,
 				    options) < 0) {
 		mm_free(bufev_p);
+		event_debug(("%s:%d fail create bufferevent", __FILE__, __LINE__));
 		return NULL;
 	}
 	bufev = &bufev_p->bev;
@@ -381,6 +387,23 @@ bufferevent_socket_new(struct event_base *base, evutil_socket_t fd,
 
 	return bufev;
 }
+
+struct bufferevent *
+bufferevent_socket_new_cb(struct event_base *base, evutil_socket_t fd,
+	int options, int (*cb)(void))
+{
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
+	cb();
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
+	return bufferevent_socket_new(base, fd, options);
+}
+
 
 int
 bufferevent_socket_connect(struct bufferevent *bev,

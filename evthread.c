@@ -92,7 +92,13 @@ void evthreadimpl_disable_lock_debugging_(void)
 int
 evthread_set_lock_callbacks(const struct evthread_lock_callbacks *cbs)
 {
+	event_debug(("%s: callback %p, lock %p", __func__, cbs, cbs->lock));
 	struct evthread_lock_callbacks *target = evthread_get_lock_callbacks();
+
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 
 #ifndef EVENT__DISABLE_DEBUG_MODE
 	if (event_debug_mode_on_) {
@@ -126,6 +132,10 @@ evthread_set_lock_callbacks(const struct evthread_lock_callbacks *cbs)
 	}
 	if (cbs->alloc && cbs->free && cbs->lock && cbs->unlock) {
 		memcpy(target, cbs, sizeof(evthread_lock_fns_));
+		event_debug(("%s:%d func(%p %p), original(%p %p)",
+			__FILE__, __LINE__, evthread_get_lock_callbacks(),
+			evthread_get_lock_callbacks()->lock,
+			(&evthread_lock_fns_), evthread_lock_fns_.lock));
 		return event_global_setup_locks_(1);
 	} else {
 		return -1;
@@ -370,7 +380,10 @@ evthread_setup_global_lock_(void *lock_, unsigned locktype, int enable_locks)
 	   2) we're turning on debugging; locking is on.
 	   3) we're turning on locking; debugging is not on.
 	   4) we're turning on locking; debugging is on. */
-
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	if (!enable_locks && original_lock_fns_.alloc == NULL) {
 		/* Case 1: allocate a debug lock. */
 		EVUTIL_ASSERT(lock_ == NULL);
@@ -396,10 +409,18 @@ evthread_setup_global_lock_(void *lock_, unsigned locktype, int enable_locks)
 		lock->held_by = 0;
 		return lock;
 	} else if (enable_locks && ! evthread_lock_debugging_enabled_) {
+		event_debug(("%s:%d func(%p %p), original(%p %p)",
+			__FILE__, __LINE__, evthread_get_lock_callbacks(),
+			evthread_get_lock_callbacks()->lock,
+			(&evthread_lock_fns_), evthread_lock_fns_.lock));
 		/* Case 3: allocate a regular lock */
 		EVUTIL_ASSERT(lock_ == NULL);
 		return evthread_lock_fns_.alloc(locktype);
 	} else {
+		event_debug(("%s:%d func(%p %p), original(%p %p)",
+			__FILE__, __LINE__, evthread_get_lock_callbacks(),
+			evthread_get_lock_callbacks()->lock,
+			(&evthread_lock_fns_), evthread_lock_fns_.lock));
 		/* Case 4: Fill in a debug lock with a real lock */
 		struct debug_lock *lock = lock_ ? lock_ : debug_lock_alloc(locktype);
 		EVUTIL_ASSERT(enable_locks &&

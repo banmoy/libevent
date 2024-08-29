@@ -185,7 +185,19 @@ evthread_use_pthreads(void)
 		return -1;
 
 	evthread_set_lock_callbacks(&cbs);
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	evthread_set_condition_callbacks(&cond_cbs);
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	evthread_set_id_callback(evthread_posix_get_id);
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	return 0;
 }

@@ -3890,15 +3890,35 @@ libevent_global_shutdown(void)
 int
 event_global_setup_locks_(const int enable_locks)
 {
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 #ifndef EVENT__DISABLE_DEBUG_MODE
 	EVTHREAD_SETUP_GLOBAL_LOCK(event_debug_map_lock_, 0);
 #endif
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	if (evsig_global_setup_locks_(enable_locks) < 0)
 		return -1;
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	if (evutil_global_setup_locks_(enable_locks) < 0)
 		return -1;
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	if (evutil_secure_rng_global_setup_locks_(enable_locks) < 0)
 		return -1;
+	event_debug(("%s:%d func(%p %p), original(%p %p)",
+		__FILE__, __LINE__, evthread_get_lock_callbacks(),
+		evthread_get_lock_callbacks()->lock,
+		(&evthread_lock_fns_), evthread_lock_fns_.lock));
 	return 0;
 }
 #endif

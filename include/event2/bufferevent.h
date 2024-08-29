@@ -189,6 +189,9 @@ enum bufferevent_options {
 EVENT2_EXPORT_SYMBOL
 struct bufferevent *bufferevent_socket_new(struct event_base *base, evutil_socket_t fd, int options);
 
+EVENT2_EXPORT_SYMBOL
+struct bufferevent *bufferevent_socket_new_cb(struct event_base *base, evutil_socket_t fd, int options, int (*cb)(void));
+
 /**
    Launch a connect() attempt with a socket-based bufferevent.
 

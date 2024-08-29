@@ -333,6 +333,7 @@ bufferevent_init_common_(struct bufferevent_private *bufev_private,
 			evbuffer_free(bufev->output);
 			bufev->input = NULL;
 			bufev->output = NULL;
+			event_debug(("%s:%d fail create bufferevent", __FILE__, __LINE__));
 			return -1;
 		}
 	}
@@ -810,12 +811,15 @@ int
 bufferevent_enable_locking_(struct bufferevent *bufev, void *lock)
 {
 #ifdef EVENT__DISABLE_THREAD_SUPPORT
+	event_debug(("%s:%d fail create bufferevent", __FILE__, __LINE__));
 	return -1;
 #else
 	struct bufferevent *underlying;
 
-	if (BEV_UPCAST(bufev)->lock)
+	if (BEV_UPCAST(bufev)->lock) {
+		event_debug(("%s:%d fail create bufferevent", __FILE__, __LINE__));
 		return -1;
+	}
 	underlying = bufferevent_get_underlying(bufev);
 
 	if (!lock && underlying && BEV_UPCAST(underlying)->lock) {
@@ -823,9 +827,15 @@ bufferevent_enable_locking_(struct bufferevent *bufev, void *lock)
 		BEV_UPCAST(bufev)->lock = lock;
 		BEV_UPCAST(bufev)->own_lock = 0;
 	} else if (!lock) {
+		event_debug(("%s:%d func(%p %p), original(%p %p)",
+			__FILE__, __LINE__, evthread_get_lock_callbacks(),
+			evthread_get_lock_callbacks()->lock,
+			(&evthread_lock_fns_), evthread_lock_fns_.lock));
 		EVTHREAD_ALLOC_LOCK(lock, EVTHREAD_LOCKTYPE_RECURSIVE);
-		if (!lock)
+		if (!lock) {
+			event_debug(("%s:%d fail create bufferevent", __FILE__, __LINE__));
 			return -1;
+		}
 		BEV_UPCAST(bufev)->lock = lock;
 		BEV_UPCAST(bufev)->own_lock = 1;
 	} else {

@@ -67,6 +67,7 @@
 #endif
 #endif
 
+#include <event2/event_struct.h>
 #include <pthread.h>
 
 char uri_root[512];
@@ -128,7 +129,7 @@ new_request_cb(struct evhttp_request *req, void *arg)
 	char *address;
 	uint16_t port;
 	evhttp_connection_get_peer(connection, &address, &port);
-	printf("New request, remote host: %s, port: %d\n", address, port);
+	event_debug(("New request, remote host: %s, port: %d", address, port));
 	evhttp_request_set_on_complete_cb(req, complete_request_cb, NULL);
 	evhttp_request_set_on_free_cb(req, free_request_cb, NULL);
 		return 0;
@@ -187,7 +188,7 @@ no_reply_runner(void *arg) {
 	struct evhttp_request *req = arg;
 	for (int i = 0; i < 5; i++) {
 		sleep(5);
-		printf("Sleep 5s for %s\n", evhttp_request_get_uri(req));
+		event_debug(("Sleep 5s for %s", evhttp_request_get_uri(req)));
 	}
 	evhttp_send_reply(req, 200, "OK", NULL);
 	return NULL;
@@ -196,7 +197,7 @@ no_reply_runner(void *arg) {
 /* Callback used for the /dump URI, and for every non-GET request:
  * dumps all information to stdout and gives back a trivial 200 ok */
 static void
-no_reploy_request_cb(struct evhttp_request *req, void *arg)
+no_reply_request_cb(struct evhttp_request *req, void *arg)
 {
 	const char *cmdtype;
 	struct evkeyvalq *headers;
@@ -216,25 +217,14 @@ no_reploy_request_cb(struct evhttp_request *req, void *arg)
 	default: cmdtype = "unknown"; break;
 	}
 
-	printf("Received a %s request for %s\nHeaders:\n",
-		cmdtype, evhttp_request_get_uri(req));
+	event_debug(("Received a %s request for %s\nHeaders:\n",
+		cmdtype, evhttp_request_get_uri(req)));
 
 	headers = evhttp_request_get_input_headers(req);
 	for (header = headers->tqh_first; header;
 		 header = header->next.tqe_next) {
-		printf("  %s: %s\n", header->key, header->value);
+		event_debug(("  %s: %s\n", header->key, header->value));
 	}
-
-	buf = evhttp_request_get_input_buffer(req);
-	puts("Input data: <<<");
-	while (evbuffer_get_length(buf)) {
-		int n;
-		char cbuf[128];
-		n = evbuffer_remove(buf, cbuf, sizeof(cbuf));
-		if (n > 0)
-			(void) fwrite(cbuf, 1, n, stdout);
-	}
-	puts(">>>");
 
 	if (pthread_create(&no_reply_thread, NULL, no_reply_runner, (void*)req) != 0) {
 		printf("Failed to create thread for %s\n", evhttp_request_get_uri(req));
@@ -421,11 +411,11 @@ syntax(void)
 static struct bufferevent *
 bufferevent_cb(struct event_base *base, void *args)
 {
-	printf("Call bufferevent_cb\n");
-	int flags = BEV_OPT_CLOSE_ON_FREE|BEV_OPT_THREADSAFE;
+	event_debug(("%s", "Call bufferevent_cb"));
+	int flags = BEV_OPT_THREADSAFE;
 	struct bufferevent *bev = bufferevent_socket_new(base, -1, flags);
 	if (bev) {
-		printf("Create bufferevent\n");
+		event_debug(("%s", "Create bufferevent"));
 	}
 	return bev;
 }
@@ -472,7 +462,7 @@ main(int argc, char **argv)
 	evhttp_set_cb(http, "/dump_2", dump_request_cb, NULL);
 	evhttp_set_cb(http, "/dump_3", dump_request_cb, NULL);
 	evhttp_set_cb(http, "/dump_4", dump_request_cb, NULL);
-	evhttp_set_cb(http, "/no_reply", no_reploy_request_cb, NULL);
+	evhttp_set_cb(http, "/no_reply", no_reply_request_cb, NULL);
 
 	/* We want to accept arbitrary requests, so we need to set a "generic"
 	 * cb.  We can also add callbacks for specific paths. */
