@@ -137,9 +137,13 @@ new_request_cb(struct evhttp_request *req, void *arg)
 
 /* Callback used for the /dump URI, and for every non-GET request:
  * dumps all information to stdout and gives back a trivial 200 ok */
-static void
-dump_request_cb(struct evhttp_request *req, void *arg)
+static void*
+dump_request_cb(void *arg)
 {
+	sleep(10);
+	printf("sleep 10s\n");
+
+	struct evhttp_request *req = arg;
 	const char *cmdtype;
 	struct evkeyvalq *headers;
 	struct evkeyval *header;
@@ -179,6 +183,40 @@ dump_request_cb(struct evhttp_request *req, void *arg)
 	puts(">>>");
 
 	evhttp_send_reply(req, 200, "OK", NULL);
+	return NULL;
+}
+
+static void
+async_dump_request_cb(struct evhttp_request *req, void *arg) {
+	const char *cmdtype;
+
+	switch (evhttp_request_get_command(req)) {
+	case EVHTTP_REQ_GET: cmdtype = "GET"; break;
+	case EVHTTP_REQ_POST: cmdtype = "POST"; break;
+	case EVHTTP_REQ_HEAD: cmdtype = "HEAD"; break;
+	case EVHTTP_REQ_PUT: cmdtype = "PUT"; break;
+	case EVHTTP_REQ_DELETE: cmdtype = "DELETE"; break;
+	case EVHTTP_REQ_OPTIONS: cmdtype = "OPTIONS"; break;
+	case EVHTTP_REQ_TRACE: cmdtype = "TRACE"; break;
+	case EVHTTP_REQ_CONNECT: cmdtype = "CONNECT"; break;
+	case EVHTTP_REQ_PATCH: cmdtype = "PATCH"; break;
+	default: cmdtype = "unknown"; break;
+	}
+
+	printf("Received a %s request for %s\nHeaders:\n",
+		cmdtype, evhttp_request_get_uri(req));
+
+	pthread_t thread;
+	if (pthread_create(&thread, NULL, dump_request_cb, (void*)req) != 0) {
+		printf("Failed to create thread for %s\n", evhttp_request_get_uri(req));
+		evhttp_send_error(req, HTTP_INTERNAL, "Failed to create thread");
+		return;
+	}
+}
+
+static void
+sync_dump_request_cb(struct evhttp_request *req, void *arg) {
+	dump_request_cb(req);
 }
 
 pthread_t no_reply_thread;
@@ -252,7 +290,7 @@ send_document_cb(struct evhttp_request *req, void *arg)
 	struct stat st;
 
 	if (evhttp_request_get_command(req) != EVHTTP_REQ_GET) {
-		dump_request_cb(req, arg);
+		dump_request_cb(req);
 		return;
 	}
 
@@ -458,10 +496,10 @@ main(int argc, char **argv)
 	evhttp_set_newreqcb(http, new_request_cb, NULL);
 
 	/* The /dump URI will dump all requests to stdout and say 200 ok. */
-	evhttp_set_cb(http, "/dump_1", dump_request_cb, NULL);
-	evhttp_set_cb(http, "/dump_2", dump_request_cb, NULL);
-	evhttp_set_cb(http, "/dump_3", dump_request_cb, NULL);
-	evhttp_set_cb(http, "/dump_4", dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_1", async_dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_2", async_dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_3", async_dump_request_cb, NULL);
+	evhttp_set_cb(http, "/dump_4", async_dump_request_cb, NULL);
 	evhttp_set_cb(http, "/no_reply", no_reply_request_cb, NULL);
 
 	/* We want to accept arbitrary requests, so we need to set a "generic"
