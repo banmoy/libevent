@@ -129,7 +129,7 @@ new_request_cb(struct evhttp_request *req, void *arg)
 	char *address;
 	uint16_t port;
 	evhttp_connection_get_peer(connection, &address, &port);
-	event_debug(("New request, remote host: %s, port: %d", address, port));
+	printf("New request, remote host: %s, port: %d", address, port);
 	evhttp_request_set_on_complete_cb(req, complete_request_cb, NULL);
 	evhttp_request_set_on_free_cb(req, free_request_cb, NULL);
 		return 0;
@@ -224,9 +224,9 @@ pthread_t no_reply_thread;
 static void*
 no_reply_runner(void *arg) {
 	struct evhttp_request *req = arg;
-	for (int i = 0; i < 5; i++) {
+	for (int i = 0; i < 2; i++) {
 		sleep(5);
-		event_debug(("Sleep 5s for %s", evhttp_request_get_uri(req)));
+		printf("Sleep 5s for %s", evhttp_request_get_uri(req));
 	}
 	evhttp_send_reply(req, 200, "OK", NULL);
 	return NULL;
@@ -255,13 +255,13 @@ no_reply_request_cb(struct evhttp_request *req, void *arg)
 	default: cmdtype = "unknown"; break;
 	}
 
-	event_debug(("Received a %s request for %s\nHeaders:\n",
-		cmdtype, evhttp_request_get_uri(req)));
+	printf("Received a %s request for %s\nHeaders:\n",
+		cmdtype, evhttp_request_get_uri(req));
 
 	headers = evhttp_request_get_input_headers(req);
 	for (header = headers->tqh_first; header;
 		 header = header->next.tqe_next) {
-		event_debug(("  %s: %s\n", header->key, header->value));
+		printf("  %s: %s\n", header->key, header->value);
 	}
 
 	if (pthread_create(&no_reply_thread, NULL, no_reply_runner, (void*)req) != 0) {
@@ -449,11 +449,11 @@ syntax(void)
 static struct bufferevent *
 bufferevent_cb(struct event_base *base, void *args)
 {
-	event_debug(("%s", "Call bufferevent_cb"));
+	printf("%s", "Call bufferevent_cb");
 	int flags = BEV_OPT_THREADSAFE;
 	struct bufferevent *bev = bufferevent_socket_new(base, -1, flags);
 	if (bev) {
-		event_debug(("%s", "Create bufferevent"));
+		printf("%s", "Create bufferevent");
 	}
 	return bev;
 }
